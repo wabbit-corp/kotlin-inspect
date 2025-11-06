@@ -1,14 +1,21 @@
 package one.wabbit.inspect
 
-import one.wabbit.inspect.Inspect.bytecodeOf
 import kotlin.reflect.full.functions
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertContains
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
+import one.wabbit.inspect.Inspect.bytecodeOf
 
 class BytecodeTests {
     class SimpleClass {
         fun simpleMethod() {}
+
         fun methodWithParams(x: Int, y: String): Boolean = true
+
         constructor(i: Int)
+
         constructor() : this(0) // Secondary constructor
 
         companion object {
@@ -94,7 +101,10 @@ class BytecodeTests {
     @Test
     fun `bytecodeOf(KFunction) for primary constructor`() {
         // Find the primary constructor (takes Int)
-        val kfun = SimpleClass::class.constructors.first { it.parameters.size == 1 && it.parameters[0].type.classifier == Int::class }
+        val kfun =
+            SimpleClass::class.constructors.first {
+                it.parameters.size == 1 && it.parameters[0].type.classifier == Int::class
+            }
         val bytecode = bytecodeOf(kfun)
         assertTrue(bytecode.isNotBlank())
         assertContains(bytecode, "INVOKESPECIAL java/lang/Object.<init>") // Calls super constructor
@@ -110,20 +120,30 @@ class BytecodeTests {
         // It should call the primary constructor (this(0))
         assertContains(bytecode, "ALOAD 0") // Load this
         assertContains(bytecode, "ICONST_0") // Load constant 0
-        assertContains(bytecode, "INVOKESPECIAL one/wabbit/inspect/BytecodeTests\$SimpleClass.<init> (I)V") // Call primary constructor
+        assertContains(
+            bytecode,
+            "INVOKESPECIAL one/wabbit/inspect/BytecodeTests\$SimpleClass.<init> (I)V",
+        ) // Call primary constructor
         assertContains(bytecode, "RETURN")
     }
 
     // Test overload resolution
     class OverloadClass {
         fun process(i: Int) {}
+
         fun process(s: String) {}
     }
 
     @Test
     fun `bytecodeOf(KFunction) should handle overloaded methods correctly`() {
-        val intFun = OverloadClass::class.functions.first { it.name == "process" && it.parameters.last().type.classifier == Int::class }
-        val strFun = OverloadClass::class.functions.first { it.name == "process" && it.parameters.last().type.classifier == String::class }
+        val intFun =
+            OverloadClass::class.functions.first {
+                it.name == "process" && it.parameters.last().type.classifier == Int::class
+            }
+        val strFun =
+            OverloadClass::class.functions.first {
+                it.name == "process" && it.parameters.last().type.classifier == String::class
+            }
 
         val intBytecode = bytecodeOf(intFun)
         val strBytecode = bytecodeOf(strFun)

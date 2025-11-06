@@ -1,14 +1,14 @@
 package one.wabbit.inspect
 
+import kotlin.reflect.KFunction
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import one.wabbit.inspect.Inspect.callerClass
 import one.wabbit.inspect.Inspect.callerClassName
 import one.wabbit.inspect.Inspect.callerFunction
 import one.wabbit.inspect.Inspect.callerMethodName
 import one.wabbit.inspect.Inspect.callerSourceLocation
-import kotlin.reflect.KFunction
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 class CallerInfoTests {
     @Test
@@ -40,6 +40,7 @@ class CallerInfoTests {
 
     // Helper for overload tests
     fun overloadedMethod(s: String): KFunction<*> = callerFunction()
+
     fun overloadedMethod(i: Int): KFunction<*> = callerFunction()
 
     @Test
