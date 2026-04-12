@@ -1,5 +1,6 @@
 package one.wabbit.inspect
 
+import one.wabbit.noglobals.RequiresGlobalState
 import java.lang.invoke.SerializedLambda
 import java.lang.reflect.Constructor
 import java.lang.reflect.Method
@@ -34,6 +35,7 @@ import org.objectweb.asm.tree.MethodNode
  *
  * Results are cached in-memory for speed.
  */
+@OptIn(RequiresGlobalState::class)
 object StableId {
     // ───────────────────────────  public API  ───────────────────────────
 
@@ -53,9 +55,13 @@ object StableId {
 
     // ─────────────────────────  internal state  ─────────────────────────
 
+    @RequiresGlobalState
     private val fnCache = ConcurrentHashMap<KFunction<*>, String>()
+    @RequiresGlobalState
     private val clsCache = ConcurrentHashMap<Class<*>, String>()
+    @RequiresGlobalState
     private val lambdaCache = ConcurrentHashMap<Class<*>, String>()
+    @RequiresGlobalState
     private val classNodeCache = ConcurrentHashMap<Class<*>, ClassNode>()
 
     // ─────────────────────────  implementation  ─────────────────────────
@@ -225,11 +231,32 @@ object StableId {
     private fun ctorId(c: Constructor<*>): String =
         "${c.declaringClass.name}#<init>${Type.getConstructorDescriptor(c)}"
 
-    private val kFunctionImplClass = Class.forName("kotlin.reflect.jvm.internal.KFunctionImpl")
-    private val boundReceiverValue =
-        kFunctionImplClass.getDeclaredField("rawBoundReceiver").apply {
-            isAccessible = true // Allow access to the private field
+    private fun findFieldInHierarchy(
+        type: Class<*>,
+        name: String,
+    ): java.lang.reflect.Field? {
+        var current: Class<*>? = type
+        while (current != null) {
+            val field = runCatching { current.getDeclaredField(name) }.getOrNull()
+            if (field != null) {
+                field.isAccessible = true
+                return field
+            }
+            current = current.superclass
         }
+        return null
+    }
+
+    private fun boundReceiverOf(kf: KFunction<*>): Any? {
+        findFieldInHierarchy(kf.javaClass, "rawBoundReceiver")?.let { field ->
+            return field.get(kf)
+        }
+
+        val receiverField = findFieldInHierarchy(kf.javaClass, "receiver") ?: return null
+        val receiver = receiverField.get(kf) ?: return null
+        val noReceiver = findFieldInHierarchy(kf.javaClass, "NO_RECEIVER")?.get(null)
+        return receiver.takeUnless { it === noReceiver }
+    }
 
     /**
      * Builds a stable id for a lambda / local / anonymous function.
@@ -244,10 +271,8 @@ object StableId {
     private fun lambdaId(kf: KFunction<*>): String {
         // Best effort to get the *instance* that owns the synthetic lambda class
         val lambdaObj =
-            // Case 1 – user already passed the instance
-            (kf as? Function<*>)
-                ?: // Case 2 – a bound reference (KFunctionImpl) -> try its boundReceiver
-                boundReceiverValue.get(kf) as? Function<*>
+            boundReceiverOf(kf) as? Function<*>
+                ?: (kf as? Function<*>)
                 ?: error(
                     "StableId: please pass the lambda instance itself " +
                         " (StableId.of(myLambda)) instead of myLambda::invoke"

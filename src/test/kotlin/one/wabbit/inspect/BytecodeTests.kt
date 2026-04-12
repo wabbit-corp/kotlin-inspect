@@ -80,12 +80,10 @@ class BytecodeTests {
     }
 
     @Test
-    fun `FAILED bytecodeOf(KFunction) for lambda`() {
+    fun `bytecodeOf(KFunction) for lambda`() {
         val kfun = { println("Hello, world!") }
-        assertFailsWith<UnsupportedOperationException> {
-            val bytecode = bytecodeOf(kfun::invoke)
-            assertTrue(bytecode.isNotBlank())
-        }
+        val bytecode = bytecodeOf(kfun::invoke)
+        assertTrue(bytecode.isNotBlank())
     }
 
     @Test
